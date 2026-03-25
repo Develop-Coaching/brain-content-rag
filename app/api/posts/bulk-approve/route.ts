@@ -1,12 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getSupabase } from '../../../lib/supabase';
 
 export async function POST(request: NextRequest) {
+  const supabase = getSupabase();
   const { ids } = await request.json();
 
   if (!ids || !Array.isArray(ids) || ids.length === 0) {

@@ -1,13 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getSupabase } from './lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
+  const supabase = getSupabase();
   const { data: calendars } = await supabase
     .from('greg_monthly_calendars')
     .select('id, month, themes, status, generated_at')

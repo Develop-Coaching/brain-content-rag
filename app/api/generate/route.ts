@@ -1,26 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GREG_SYSTEM_PROMPT, getSeasonalContext, formatMonth } from '../../../src/agent/voice';
-
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-async function quickSearch(query: string, limit: number = 5) {
-  const emb = await openai.embeddings.create({ model: 'text-embedding-3-small', input: query });
-  const { data } = await supabase.rpc('match_training_chunks', {
-    query_embedding: emb.data[0].embedding,
-    match_count: limit,
-  });
-  return (data || []).map((r: any) => `[${r.section}] ${(r.chunk_text || '').slice(0, 200)}...`).join('\n\n');
-}
+import { getSupabase } from '../../lib/supabase';
 
 export const maxDuration = 300; // 5 minutes
 
 export async function POST(request: NextRequest) {
   try {
+  const supabase = getSupabase();
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  async function quickSearch(query: string, limit: number = 5) {
+    const emb = await openai.embeddings.create({ model: 'text-embedding-3-small', input: query });
+    const { data } = await supabase.rpc('match_training_chunks', {
+      query_embedding: emb.data[0].embedding,
+      match_count: limit,
+    });
+    return (data || []).map((r: any) => `[${r.section}] ${(r.chunk_text || '').slice(0, 200)}...`).join('\n\n');
+  }
   const body = await request.json();
   console.log('[generate] Request body:', JSON.stringify({ month: body.month, weekCount: body.weeks?.length }));
   const { month, weeks: weekConfigs } = body;

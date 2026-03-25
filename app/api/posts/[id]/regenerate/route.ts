@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import { GREG_SYSTEM_PROMPT } from '../../../../../src/agent/voice';
-
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+import { getSupabase } from '../../../../lib/supabase';
 
 const PLATFORM_GUIDELINES: Record<string, string> = {
   linkedin_article: 'LinkedIn Article: 500-800 words, long-form deep dive. Include a "description" field with a 1-2 sentence teaser.',
@@ -20,6 +17,8 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const supabase = getSupabase();
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const { id } = await params;
   const { instructions } = await request.json();
 
