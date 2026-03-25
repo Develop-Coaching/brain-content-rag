@@ -1,0 +1,31 @@
+{
+  "name": "greg-brain",
+  "version": "1.0.0",
+  "description": "Greg Brain - Content RAG & Monthly Planning Agent for Develop Coaching",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "audit": "tsx scripts/audit.ts",
+    "ingest": "tsx scripts/run-ingestion.ts",
+    "monthly": "tsx scripts/run-monthly.ts",
+    "dev": "next dev --port 3000",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@slack/web-api": "^7.8.0",
+    "@supabase/supabase-js": "^2.49.1",
+    "dotenv": "^16.4.7",
+    "next": "^15.1.0",
+    "openai": "^4.77.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

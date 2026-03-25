@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.next/
+.env
+*.log
+.DS_Store
+__pycache__/
+*.pyc
+downloads/
+*.mp3
+*.mp4
+*.wav
+*.m4a
