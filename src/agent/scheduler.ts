@@ -4,15 +4,12 @@
 import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const PLATFORM_PROFILE_IDS: Record<string, string | undefined> = {
-  linkedin: process.env.BUFFER_LINKEDIN_PROFILE_ID,
-  x: process.env.BUFFER_X_PROFILE_ID,
-};
+function getSupabase() {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 interface ContentQueueItem {
   id: string;
@@ -22,12 +19,17 @@ interface ContentQueueItem {
 }
 
 export async function schedulePost(post: ContentQueueItem): Promise<boolean> {
+  const supabase = getSupabase();
   const bufferToken = process.env.BUFFER_ACCESS_TOKEN;
   if (!bufferToken) {
     console.log('Buffer not configured - skipping scheduling');
     return false;
   }
 
+  const PLATFORM_PROFILE_IDS: Record<string, string | undefined> = {
+    linkedin: process.env.BUFFER_LINKEDIN_PROFILE_ID,
+    x: process.env.BUFFER_X_PROFILE_ID,
+  };
   const profileId = PLATFORM_PROFILE_IDS[post.platform];
   if (!profileId) {
     console.log(
@@ -76,6 +78,7 @@ export async function scheduleApprovedPosts(): Promise<{
   scheduled: number;
   failed: number;
 }> {
+  const supabase = getSupabase();
   // Get all approved posts that haven't been scheduled yet
   const { data: posts, error } = await supabase
     .from('greg_content_queue')
