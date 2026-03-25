@@ -34,12 +34,14 @@
   },
   "include": [
     "next-env.d.ts",
+    "app/**/*",
     "scripts/**/*",
     "src/**/*",
     ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "src/ui"
   ]
 }

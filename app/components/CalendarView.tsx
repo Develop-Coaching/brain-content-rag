@@ -7,8 +7,10 @@ interface Post {
   draft_content: string;
   description: string | null;
   graphic_prompt: string | null;
+  source_chunk_ids: string[];
   scheduled_date: string;
   status: string;
+  chloe_notes: string | null;
 }
 
 const PLATFORM_CONFIG: Record<string, { icon: string; color: string; bg: string; label: string }> = {

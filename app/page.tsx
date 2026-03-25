@@ -91,7 +91,7 @@ export default async function HomePage() {
 
               {cal.themes && cal.themes.length > 0 && (
                 <div style={{ marginTop: '14px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {cal.themes.map((theme, i) => (
+                  {cal.themes.map((theme: string, i: number) => (
                     <span key={i} style={{
                       fontSize: '11px', padding: '3px 10px', borderRadius: '6px',
                       background: 'rgba(124,58,237,0.12)', color: 'rgba(168,85,247,0.8)',

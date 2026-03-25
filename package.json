@@ -4,7 +4,7 @@
   "description": "Greg Brain - Content RAG & Monthly Planning Agent for Develop Coaching",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "next build",
     "audit": "tsx scripts/audit.ts",
     "ingest": "tsx scripts/run-ingestion.ts",
     "monthly": "tsx scripts/run-monthly.ts",
