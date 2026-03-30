@@ -46,6 +46,7 @@ export function PostDrawer({
   const [showRegen, setShowRegen] = useState(false);
   const [regenInstructions, setRegenInstructions] = useState('');
   const [regenerating, setRegenerating] = useState(false);
+  const [previewMode, setPreviewMode] = useState(false);
 
   const DESCRIPTION_LABELS: Record<string, string> = {
     linkedin_article: 'Article Description',
@@ -124,19 +125,44 @@ export function PostDrawer({
           </div>
 
           {/* Content editor */}
-          <label style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '8px' }}>
-            Draft Content
-          </label>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            style={{
-              width: '100%', minHeight: '220px', padding: '16px',
-              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '10px', fontSize: '14px', lineHeight: '1.7',
-              fontFamily: 'inherit', color: '#e0e0e0', resize: 'vertical',
-            }}
-          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Draft Content
+            </label>
+            <button
+              onClick={() => setPreviewMode(!previewMode)}
+              style={{
+                padding: '3px 10px', borderRadius: '5px', border: 'none',
+                fontSize: '11px', fontWeight: 600,
+                background: previewMode ? 'rgba(124,58,237,0.15)' : 'rgba(255,255,255,0.06)',
+                color: previewMode ? '#a855f7' : 'rgba(255,255,255,0.35)',
+              }}
+            >
+              {previewMode ? 'Edit' : 'Preview'}
+            </button>
+          </div>
+          {previewMode ? (
+            <div
+              dangerouslySetInnerHTML={{ __html: content }}
+              style={{
+                width: '100%', minHeight: '220px', padding: '16px',
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '10px', fontSize: '14px', lineHeight: '1.7',
+                color: '#e0e0e0', overflow: 'auto',
+              }}
+            />
+          ) : (
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              style={{
+                width: '100%', minHeight: '220px', padding: '16px',
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '10px', fontSize: '14px', lineHeight: '1.7',
+                fontFamily: 'inherit', color: '#e0e0e0', resize: 'vertical',
+              }}
+            />
+          )}
           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '6px', textAlign: 'right' }}>
             {content.length} characters
           </div>
