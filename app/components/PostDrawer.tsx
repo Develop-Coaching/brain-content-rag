@@ -46,7 +46,7 @@ export function PostDrawer({
   const [showRegen, setShowRegen] = useState(false);
   const [regenInstructions, setRegenInstructions] = useState('');
   const [regenerating, setRegenerating] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [previewMode, setPreviewMode] = useState(true);
 
   const DESCRIPTION_LABELS: Record<string, string> = {
     linkedin_article: 'Article Description',
@@ -143,7 +143,9 @@ export function PostDrawer({
           </div>
           {previewMode ? (
             <div
-              dangerouslySetInnerHTML={{ __html: content }}
+              dangerouslySetInnerHTML={{
+                __html: content.includes('<') ? content : content.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>').replace(/^/, '<p>').replace(/$/, '</p>'),
+              }}
               style={{
                 width: '100%', minHeight: '220px', padding: '16px',
                 background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',

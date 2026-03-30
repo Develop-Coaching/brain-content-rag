@@ -55,8 +55,6 @@ PLATFORM GUIDELINES: ${platformGuide}
 
 Regenerate the post following the instructions above. Make sure to draw from the reference source material if provided. Also include a graphic_prompt with creative direction for the visual.
 
-FORMATTING: Write all content as plain text. Use line breaks for paragraphs. Do NOT use HTML tags (no <p>, <br>, <strong>, <h2>, etc.). Do NOT use markdown formatting. Just write natural, clean plain text.
-
 Return JSON only:
 { "content": "The new post content...", "description": "The new description/caption...", "graphic_prompt": "Image/visual concept..." }`,
     }],

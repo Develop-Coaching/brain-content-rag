@@ -225,8 +225,6 @@ ALSO: For every post, include a "graphic_prompt" field - creative direction for 
 
 Spread scheduled_day values 1-7 across the week.
 
-FORMATTING: Write all content as plain text. Use line breaks for paragraphs. Do NOT use HTML tags (no <p>, <br>, <strong>, <h2>, etc.). Do NOT use markdown formatting. Just write natural, clean plain text.
-
 Respond in JSON only:
 { "posts": [{ "platform": "linkedin_article", "post_type": "deep_dive", "content": "Full content...", "description": "Description...", "graphic_prompt": "Image concept...", "scheduled_day": 1 }] }`,
       }],
