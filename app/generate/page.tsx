@@ -61,6 +61,9 @@ export default function GeneratePage() {
   const [progress, setProgress] = useState('');
   const [result, setResult] = useState<{ reviewUrl: string; postsCreated: number; themes: string[] } | null>(null);
   const [error, setError] = useState('');
+  const [calendarId, setCalendarId] = useState<string | null>(null);
+  const [weekStatuses, setWeekStatuses] = useState<('pending' | 'generating' | 'done' | 'failed')[]>([]);
+  const [weekPostCounts, setWeekPostCounts] = useState<number[]>([]);
 
   function updateWeek(i: number, updates: Partial<WeekConfig>) {
     setWeeks(prev => prev.map((w, idx) => idx === i ? { ...w, ...updates } : w));
@@ -183,64 +186,107 @@ export default function GeneratePage() {
     }
   }
 
-  // Step 2: Generate full content with approved themes
-  async function handleGenerateContent() {
+  // Step 2: Generate content week by week
+  async function handleGenerateContent(startFromWeek: number = 0) {
     setStep('generating');
     setError('');
-    setResult(null);
-    setProgress('Generating content for all weeks... this takes 1-2 minutes.');
 
-    try {
-      const weekData = await Promise.all(weeks.map(async (w, i) => {
+    let currentCalendarId = calendarId;
+
+    // Create calendar if we don't have one yet
+    if (!currentCalendarId) {
+      try {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            month,
+            themes: weeks.map(w => w.theme),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create calendar');
+        currentCalendarId = data.calendarId;
+        setCalendarId(currentCalendarId);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to create calendar');
+        setStep('themes');
+        return;
+      }
+    }
+
+    // Initialize statuses
+    const statuses: ('pending' | 'generating' | 'done' | 'failed')[] =
+      weekStatuses.length === weeks.length ? [...weekStatuses] : weeks.map(() => 'pending');
+    const counts = weekPostCounts.length === weeks.length ? [...weekPostCounts] : weeks.map(() => 0);
+
+    // Generate each week sequentially
+    for (let i = startFromWeek; i < weeks.length; i++) {
+      const w = weeks[i];
+      statuses[i] = 'generating';
+      setWeekStatuses([...statuses]);
+      setProgress(`Generating Week ${i + 1}: ${w.theme}...`);
+
+      try {
         let fileContent: string | null = null;
         if (w.file) {
           fileContent = await w.file.text();
         }
-        return {
-          week: i + 1,
-          mode: 'custom', // All themes are now confirmed
-          theme: w.theme.trim(),
-          instructions: (w.instructions || '').trim() || null,
-          fileContent,
-          fileName: w.fileName || null,
-          contentMix: w.contentMix,
-        };
-      }));
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 290000);
+        const res = await fetch('/api/generate-week', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            calendarId: currentCalendarId,
+            month,
+            weekNumber: i + 1,
+            theme: w.theme.trim(),
+            instructions: (w.instructions || '').trim() || null,
+            fileContent,
+            fileName: w.fileName || null,
+            contentMix: w.contentMix,
+          }),
+        });
 
-      const res = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ month, mode: 'mixed', weeks: weekData }),
-        signal: controller.signal,
-      });
+        const responseText = await res.text();
+        let data;
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error('Server returned an invalid response');
+        }
 
-      clearTimeout(timeoutId);
+        if (!res.ok) throw new Error(data.error || 'Generation failed');
 
-      const responseText = await res.text();
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        throw new Error(
-          res.status === 504 || responseText.includes('<!DOCTYPE')
-            ? 'The request timed out. Try reducing the number of posts or weeks.'
-            : `Server error (${res.status})`
-        );
+        statuses[i] = 'done';
+        counts[i] = data.postsCreated || 0;
+        setWeekStatuses([...statuses]);
+        setWeekPostCounts([...counts]);
+      } catch (e) {
+        statuses[i] = 'failed';
+        setWeekStatuses([...statuses]);
+        setWeekPostCounts([...counts]);
+        setError(`Week ${i + 1} failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
+        setProgress('');
+        return; // Stop here — user can click Continue
       }
+    }
 
-      if (!res.ok) throw new Error(data.error || 'Generation failed');
+    // All done
+    const totalPosts = counts.reduce((sum, n) => sum + n, 0);
+    setResult({
+      postsCreated: totalPosts,
+      themes: weeks.map(w => w.theme),
+      reviewUrl: `/content/review/${month}`,
+    });
+    setStep('done');
+    setProgress('');
+  }
 
-      setResult(data);
-      setStep('done');
-      setProgress('');
-    } catch (e) {
-      console.error('Generate error:', e);
-      setError(e instanceof Error ? e.message : 'Something went wrong');
-      setStep('themes'); // Go back to themes so they can retry
-      setProgress('');
+  function handleContinueGenerating() {
+    const firstIncomplete = weekStatuses.findIndex(s => s === 'failed' || s === 'pending');
+    if (firstIncomplete >= 0) {
+      handleGenerateContent(firstIncomplete);
     }
   }
 
@@ -587,7 +633,7 @@ export default function GeneratePage() {
               {'\u2190'} Back
             </button>
             <button
-              onClick={handleGenerateContent}
+              onClick={() => handleGenerateContent()}
               style={{
                 flex: 1, padding: '14px',
                 background: 'linear-gradient(135deg, #059669, #10b981)',
@@ -601,28 +647,76 @@ export default function GeneratePage() {
         </>
       )}
 
-      {/* ── GENERATING SPINNER ── */}
-      {step === 'generating' && progress && (
-        <div style={{
-          marginTop: '20px', padding: '24px', borderRadius: '12px',
-          background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.15)',
-          fontSize: '14px', color: 'rgba(168,85,247,0.8)',
-          display: 'flex', alignItems: 'center', gap: '12px',
-        }}>
-          <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block', fontSize: '20px' }}>&#9881;</span>
-          {progress}
+      {/* ── GENERATING PROGRESS ── */}
+      {step === 'generating' && (
+        <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {weeks.map((w, i) => {
+            const status = weekStatuses[i] || 'pending';
+            const count = weekPostCounts[i] || 0;
+            return (
+              <div key={i} style={{
+                padding: '14px 18px', borderRadius: '10px',
+                background: status === 'generating' ? 'rgba(124,58,237,0.08)' :
+                  status === 'done' ? 'rgba(74,222,128,0.06)' :
+                  status === 'failed' ? 'rgba(248,113,113,0.06)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${status === 'generating' ? 'rgba(124,58,237,0.2)' :
+                  status === 'done' ? 'rgba(74,222,128,0.15)' :
+                  status === 'failed' ? 'rgba(248,113,113,0.15)' : 'rgba(255,255,255,0.05)'}`,
+                display: 'flex', alignItems: 'center', gap: '12px',
+              }}>
+                <span style={{
+                  fontSize: '11px', fontWeight: 700, color: '#7c3aed',
+                  background: 'rgba(124,58,237,0.12)', padding: '3px 8px', borderRadius: '5px',
+                }}>W{i + 1}</span>
+                <span style={{
+                  flex: 1, fontSize: '13px', fontWeight: 600,
+                  color: status === 'done' ? '#4ade80' :
+                    status === 'failed' ? '#f87171' :
+                    status === 'generating' ? 'rgba(168,85,247,0.8)' : 'rgba(255,255,255,0.25)',
+                }}>
+                  {w.theme}
+                </span>
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)' }}>
+                  {status === 'done' && `${count} posts \u2713`}
+                  {status === 'generating' && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>&#9881;</span>
+                      generating...
+                    </span>
+                  )}
+                  {status === 'failed' && 'failed'}
+                  {status === 'pending' && 'waiting'}
+                </span>
+              </div>
+            );
+          })}
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
 
-      {/* ── ERROR ── */}
+      {/* ── ERROR + CONTINUE ── */}
       {error && (
-        <div style={{
-          marginTop: '20px', padding: '16px', borderRadius: '10px',
-          background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
-          fontSize: '13px', color: '#f87171', wordBreak: 'break-word',
-        }}>
-          {error.includes('<') ? error.replace(/<[^>]*>/g, '').slice(0, 500) : error}
+        <div style={{ marginTop: '16px' }}>
+          <div style={{
+            padding: '16px', borderRadius: '10px',
+            background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
+            fontSize: '13px', color: '#f87171', wordBreak: 'break-word',
+          }}>
+            {error.includes('<') ? error.replace(/<[^>]*>/g, '').slice(0, 500) : error}
+          </div>
+          {step === 'generating' && weekStatuses.some(s => s === 'failed' || s === 'pending') && (
+            <button
+              onClick={handleContinueGenerating}
+              style={{
+                marginTop: '12px', width: '100%', padding: '14px',
+                background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                border: 'none', borderRadius: '10px', color: '#fff',
+                fontSize: '15px', fontWeight: 700,
+              }}
+            >
+              Continue Generating
+            </button>
+          )}
         </div>
       )}
 
