@@ -34,10 +34,12 @@ export function PostDrawer({
   post,
   onUpdate,
   onClose,
+  onDelete,
 }: {
   post: Post;
   onUpdate: (id: string, updates: { status?: string; draft_content?: string; description?: string; chloe_notes?: string; scheduled_date?: string }) => void;
   onClose: () => void;
+  onDelete?: (id: string) => void;
 }) {
   const [content, setContent] = useState(post.draft_content);
   const [description, setDescription] = useState(post.description || '');
@@ -48,6 +50,8 @@ export function PostDrawer({
   const [regenInstructions, setRegenInstructions] = useState('');
   const [regenerating, setRegenerating] = useState(false);
   const [previewMode, setPreviewMode] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [assetUrl, setAssetUrl] = useState(post.graphic_prompt?.startsWith('http') ? post.graphic_prompt : '');
 
   const DESCRIPTION_LABELS: Record<string, string> = {
     linkedin_article: 'Article Description',
@@ -242,6 +246,55 @@ export function PostDrawer({
             </>
           )}
 
+          {/* File Upload */}
+          <label style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginTop: '20px', marginBottom: '8px' }}>
+            Attachment
+            <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, marginLeft: '8px', color: 'rgba(255,255,255,0.15)' }}>
+              (image, PDF, or file)
+            </span>
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <label style={{
+              padding: '8px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
+              background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.15)',
+              color: 'rgba(96,165,250,0.7)', cursor: uploading ? 'wait' : 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              opacity: uploading ? 0.5 : 1,
+            }}>
+              {uploading ? 'Uploading...' : '\u{1F4CE} Upload File'}
+              <input
+                type="file"
+                accept="image/*,.pdf,.doc,.docx,.txt"
+                style={{ display: 'none' }}
+                disabled={uploading}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploading(true);
+                  try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const res = await fetch(`/api/posts/${post.id}/upload`, { method: 'POST', body: formData });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setAssetUrl(data.url);
+                    }
+                  } finally {
+                    setUploading(false);
+                  }
+                }}
+              />
+            </label>
+            {assetUrl && (
+              <a href={assetUrl} target="_blank" rel="noopener noreferrer" style={{
+                fontSize: '12px', color: 'rgba(96,165,250,0.7)', overflow: 'hidden',
+                textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '250px',
+              }}>
+                {assetUrl.split('/').pop()}
+              </a>
+            )}
+          </div>
+
           {/* Regenerate */}
           <button
             onClick={() => setShowRegen(!showRegen)}
@@ -346,6 +399,18 @@ export function PostDrawer({
               border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px',
               color: '#e0e0e0', fontSize: '13px', fontWeight: 500,
             }}>Save</button>
+          )}
+          {onDelete && (
+            <button onClick={() => {
+              if (confirm('Delete this post permanently?')) { onDelete(post.id); onClose(); }
+            }} style={{
+              padding: '10px 14px', background: 'none',
+              border: '1px solid rgba(248,113,113,0.15)', borderRadius: '8px',
+              color: 'rgba(248,113,113,0.5)', fontSize: '13px', fontWeight: 500,
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(248,113,113,0.1)'; e.currentTarget.style.color = '#f87171'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = 'rgba(248,113,113,0.5)'; }}
+            >Delete</button>
           )}
           <button onClick={() => {
             if (!notes.trim()) { alert('Add a note explaining why.'); return; }

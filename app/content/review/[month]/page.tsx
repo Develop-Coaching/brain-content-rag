@@ -75,6 +75,22 @@ export default function ReviewPage({ params }: { params: Promise<{ month: string
     if (res.ok) loadData(monthParam);
   }
 
+  async function deletePost(postId: string) {
+    const res = await fetch(`/api/posts/${postId}`, { method: 'DELETE' });
+    if (res.ok) {
+      setPosts(prev => prev.filter(p => p.id !== postId));
+      if (selectedPost?.id === postId) setSelectedPost(null);
+    }
+  }
+
+  async function deleteWeek(postIds: string[]) {
+    for (const id of postIds) {
+      await fetch(`/api/posts/${id}`, { method: 'DELETE' });
+    }
+    setPosts(prev => prev.filter(p => !postIds.includes(p.id)));
+    if (selectedPost && postIds.includes(selectedPost.id)) setSelectedPost(null);
+  }
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '80px', color: 'rgba(255,255,255,0.25)' }}>
@@ -156,10 +172,10 @@ export default function ReviewPage({ params }: { params: Promise<{ month: string
         </div>
       </div>
 
-      <CalendarView posts={posts} month={monthDate} themes={calendar.themes} onSelectPost={setSelectedPost} />
+      <CalendarView posts={posts} month={monthDate} themes={calendar.themes} onSelectPost={setSelectedPost} onDeletePost={deletePost} onDeleteWeek={deleteWeek} />
 
       {selectedPost && (
-        <PostDrawer post={selectedPost} onUpdate={updatePost} onClose={() => setSelectedPost(null)} />
+        <PostDrawer post={selectedPost} onUpdate={updatePost} onDelete={deletePost} onClose={() => setSelectedPost(null)} />
       )}
     </div>
   );

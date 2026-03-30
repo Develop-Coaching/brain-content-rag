@@ -69,11 +69,15 @@ export function CalendarView({
   month,
   themes,
   onSelectPost,
+  onDeletePost,
+  onDeleteWeek,
 }: {
   posts: Post[];
   themes?: string[];
   month: Date;
   onSelectPost: (post: Post) => void;
+  onDeletePost?: (postId: string) => void;
+  onDeleteWeek?: (postIds: string[]) => void;
 }) {
   // Group posts by week
   const weeks: { weekNum: number; startDate: Date; endDate: Date; posts: Post[] }[] = [];
@@ -146,9 +150,29 @@ export function CalendarView({
                 {week.endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
               </span>
             </div>
-            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
-              {week.posts.length} post{week.posts.length !== 1 ? 's' : ''}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.25)' }}>
+                {week.posts.length} post{week.posts.length !== 1 ? 's' : ''}
+              </span>
+              {onDeleteWeek && week.posts.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete all ${week.posts.length} posts in Week ${week.weekNum}?`)) {
+                      onDeleteWeek(week.posts.map(p => p.id));
+                    }
+                  }}
+                  style={{
+                    padding: '3px 8px', borderRadius: '5px', border: 'none',
+                    background: 'rgba(248,113,113,0.08)', color: 'rgba(248,113,113,0.5)',
+                    fontSize: '11px', fontWeight: 600,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(248,113,113,0.15)'; e.currentTarget.style.color = '#f87171'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(248,113,113,0.08)'; e.currentTarget.style.color = 'rgba(248,113,113,0.5)'; }}
+                >
+                  Delete Week
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Posts */}
@@ -212,6 +236,22 @@ export function CalendarView({
                           fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px',
                           marginLeft: 'auto',
                         }}>{post.status}</span>
+                        {onDeletePost && (
+                          <span
+                            role="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm('Delete this post?')) onDeletePost(post.id);
+                            }}
+                            style={{
+                              padding: '2px 6px', borderRadius: '4px',
+                              color: 'rgba(255,255,255,0.15)', fontSize: '12px',
+                              cursor: 'pointer', marginLeft: '4px',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.color = '#f87171'; e.currentTarget.style.background = 'rgba(248,113,113,0.1)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.15)'; e.currentTarget.style.background = 'transparent'; }}
+                          >{'\u2715'}</span>
+                        )}
                       </div>
                       {post.description && (
                         <div style={{
