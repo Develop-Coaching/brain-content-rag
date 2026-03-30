@@ -36,7 +36,7 @@ export function PostDrawer({
   onClose,
 }: {
   post: Post;
-  onUpdate: (id: string, updates: { status?: string; draft_content?: string; chloe_notes?: string }) => void;
+  onUpdate: (id: string, updates: { status?: string; draft_content?: string; description?: string; chloe_notes?: string; scheduled_date?: string }) => void;
   onClose: () => void;
 }) {
   const [content, setContent] = useState(post.draft_content);
@@ -60,7 +60,7 @@ export function PostDrawer({
   };
   const descriptionLabel = DESCRIPTION_LABELS[post.platform] || 'Description';
   const hasDescription = !!(post.description || description);
-  const hasChanges = content !== post.draft_content || notes !== (post.chloe_notes || '') || description !== (post.description || '');
+  const hasChanges = content !== post.draft_content || notes !== (post.chloe_notes || '') || description !== (post.description || '') || scheduledDate !== post.scheduled_date;
   const platformColor = PLATFORM_COLORS[post.platform] || '#999';
 
   return (
@@ -341,7 +341,7 @@ export function PostDrawer({
           display: 'flex', gap: '10px', alignItems: 'center',
         }}>
           {hasChanges && (
-            <button onClick={() => onUpdate(post.id, { draft_content: content, chloe_notes: notes || undefined })} style={{
+            <button onClick={() => onUpdate(post.id, { draft_content: content, description: description || undefined, chloe_notes: notes || undefined, scheduled_date: scheduledDate })} style={{
               padding: '10px 18px', background: 'rgba(255,255,255,0.06)',
               border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px',
               color: '#e0e0e0', fontSize: '13px', fontWeight: 500,
@@ -355,7 +355,7 @@ export function PostDrawer({
             border: '1px solid rgba(248,113,113,0.2)', borderRadius: '8px',
             color: '#f87171', fontSize: '13px', fontWeight: 600,
           }}>Reject</button>
-          <button onClick={() => onUpdate(post.id, { status: 'approved', draft_content: content, chloe_notes: notes || undefined })} style={{
+          <button onClick={() => onUpdate(post.id, { status: 'approved', draft_content: content, description: description || undefined, chloe_notes: notes || undefined, scheduled_date: scheduledDate })} style={{
             padding: '10px 24px', background: 'linear-gradient(135deg, #059669, #10b981)',
             border: 'none', borderRadius: '8px',
             color: '#fff', fontSize: '13px', fontWeight: 700, marginLeft: 'auto',

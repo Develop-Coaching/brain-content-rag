@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import { GREG_SYSTEM_PROMPT, getSeasonalContext, formatMonth } from '../../../src/agent/voice';
 import { getSupabase } from '../../lib/supabase';
 
-export const maxDuration = 300; // 5 minutes
+export const maxDuration = 300;
 
 const PLATFORM_GUIDELINES: Record<string, string> = {
   linkedin_article: 'LinkedIn Article: 500-800 words, long-form deep dive. Include a "description" field with a 1-2 sentence teaser.',
@@ -16,23 +16,18 @@ const PLATFORM_GUIDELINES: Record<string, string> = {
   carousel: 'Carousel: 5-7 slide titles with descriptions. Include a "description" field summarising the carousel.',
 };
 
-function buildPostList(contentMix: Record<string, number>): string {
-  const lines: string[] = [];
-  let num = 1;
+// Build a flat list of posts to generate from the content mix
+function buildPostEntries(contentMix: Record<string, number>): { platform: string; guideline: string }[] {
+  const entries: { platform: string; guideline: string }[] = [];
   for (const [platform, count] of Object.entries(contentMix)) {
     if (count <= 0) continue;
     const guideline = PLATFORM_GUIDELINES[platform] || `${platform}: Write appropriate content for this platform.`;
-    if (count === 1) {
-      lines.push(`${num}. ${guideline}`);
-      num++;
-    } else {
-      for (let i = 0; i < count; i++) {
-        lines.push(`${num}. ${guideline} (variation ${i + 1} of ${count} — each must have a unique angle)`);
-        num++;
-      }
+    for (let i = 0; i < count; i++) {
+      const suffix = count > 1 ? ` (variation ${i + 1} of ${count} — unique angle)` : '';
+      entries.push({ platform, guideline: guideline + suffix });
     }
   }
-  return lines.join('\n');
+  return entries;
 }
 
 export async function POST(request: NextRequest) {
@@ -56,97 +51,102 @@ export async function POST(request: NextRequest) {
       instagram_post: 1, instagram_reel: 1, carousel: 1,
     };
     const mix = contentMix || defaultMix;
-    const postCount = Object.values(mix).reduce((sum: number, n: any) => sum + (n as number), 0);
+    const allEntries = buildPostEntries(mix);
 
-    if (postCount === 0) {
+    if (allEntries.length === 0) {
       return NextResponse.json({ postsCreated: 0 });
     }
 
-    // Quick knowledge base search
-    console.log(`[generate-week] Starting week ${weekNumber}, ${postCount} posts`);
+    // Knowledge base search
+    console.log(`[generate-week] Week ${weekNumber}: ${allEntries.length} posts in ${Math.ceil(allEntries.length / 3)} batches`);
     const emb = await openai.embeddings.create({ model: 'text-embedding-3-small', input: 'business planning cashflow pricing scaling leads architects subcontractors' });
-    console.log('[generate-week] Embeddings done');
     const { data: kbData } = await supabase.rpc('match_training_chunks', {
       query_embedding: emb.data[0].embedding,
-      match_count: 15,
+      match_count: 10,
     });
-    const knowledgeBase = (kbData || []).map((r: any) => `[${r.section}] ${(r.chunk_text || '').slice(0, 200)}...`).join('\n\n');
+    const knowledgeBase = (kbData || []).map((r: any) => `[${r.section}] ${(r.chunk_text || '').slice(0, 150)}...`).join('\n\n');
 
-    // Build prompt
-    let referenceSection = `KNOWLEDGE BASE CONTENT TO DRAW FROM:\n${knowledgeBase}`;
+    // Build reference section
+    let referenceSection = `KNOWLEDGE BASE:\n${knowledgeBase}`;
     if (fileContent) {
-      const truncatedFile = fileContent.slice(0, 6000);
-      referenceSection += `\n\nREFERENCE FILE (${fileName}):\nUse this file as primary source material. Draw specific examples, frameworks, and ideas from it.\n\n${truncatedFile}${fileContent.length > 6000 ? '\n\n[...file truncated]' : ''}`;
+      const truncatedFile = fileContent.slice(0, 4000);
+      referenceSection += `\n\nREFERENCE FILE (${fileName}):\n${truncatedFile}${fileContent.length > 4000 ? '\n[...truncated]' : ''}`;
     }
 
     const instructionsBlock = instructions
-      ? `\n\nCUSTOM INSTRUCTIONS (MUST FOLLOW):\n${instructions}\nThese instructions override defaults. Follow them exactly.`
+      ? `\nCUSTOM INSTRUCTIONS: ${instructions}`
       : '';
 
-    const postListPrompt = buildPostList(mix);
-    const maxTokens = Math.min(16000, Math.max(4000, postCount * 1500));
+    // Generate in batches of 3 posts max
+    const BATCH_SIZE = 3;
+    let postsCreated = 0;
+    const sourceContext = fileContent ? fileContent.slice(0, 4000) : null;
 
-    const weekRes = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens,
-      system: GREG_SYSTEM_PROMPT,
-      messages: [{
-        role: 'user',
-        content: `Generate content for Week ${weekNumber} of ${formatMonth(monthDate)}.
+    for (let batchStart = 0; batchStart < allEntries.length; batchStart += BATCH_SIZE) {
+      const batch = allEntries.slice(batchStart, batchStart + BATCH_SIZE);
+      const batchNum = Math.floor(batchStart / BATCH_SIZE) + 1;
+      console.log(`[generate-week] Week ${weekNumber} batch ${batchNum}: ${batch.map(b => b.platform).join(', ')}`);
+
+      const postList = batch.map((entry, i) => `${i + 1}. ${entry.guideline}`).join('\n');
+
+      const res = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: batch.length * 1500,
+        system: GREG_SYSTEM_PROMPT,
+        messages: [{
+          role: 'user',
+          content: `Generate ${batch.length} posts for Week ${weekNumber} of ${formatMonth(monthDate)}.
 Theme: "${theme}"${instructionsBlock}
 
 ${referenceSection}
 
-Generate exactly ${postCount} posts for this week:
-${postListPrompt}
+${postList}
 
-ALSO: For every post, include a "graphic_prompt" field - a brief creative direction for the visual/graphic to accompany the post. Describe what the image or graphic should look like: style, colours, text overlay, photo type, or illustration concept. Be specific enough that a designer or AI image tool could create it. For reels, describe the thumbnail.
+For every post include a "graphic_prompt" field with creative direction for the visual.
 
-Spread scheduled_day values 1-7 across the week.
+Spread scheduled_day values across days ${batchStart + 1}-${batchStart + batch.length}.
 
 Respond in JSON only:
-{ "posts": [{ "platform": "linkedin_article", "post_type": "deep_dive", "content": "Full content...", "description": "Description...", "graphic_prompt": "Image concept...", "scheduled_day": 1 }] }`,
-      }],
-    });
-
-    console.log('[generate-week] Claude response received');
-    const weekText = weekRes.content[0].type === 'text' ? weekRes.content[0].text : '';
-    let weekPosts: any[];
-    try {
-      weekPosts = JSON.parse(weekText.match(/\{[\s\S]*\}/)?.[0] || '{}').posts || [];
-    } catch {
-      console.log('[generate-week] Failed to parse Claude response');
-      weekPosts = [];
-    }
-
-    let postsCreated = 0;
-    const sourceContext = fileContent ? fileContent.slice(0, 4000) : null;
-
-    for (const post of weekPosts) {
-      const dayOffset = (weekNumber - 1) * 7 + ((post.scheduled_day || 1) - 1);
-      const scheduledDate = new Date(monthStart);
-      scheduledDate.setDate(scheduledDate.getDate() + dayOffset);
-
-      const { error } = await supabase.from('greg_content_queue').insert({
-        calendar_id: calendarId,
-        platform: post.platform,
-        post_type: post.post_type,
-        draft_content: post.content,
-        description: post.description || null,
-        graphic_prompt: post.graphic_prompt || null,
-        source_context: sourceContext,
-        scheduled_date: scheduledDate.toISOString().split('T')[0],
-        status: 'draft',
+{ "posts": [{ "platform": "...", "post_type": "...", "content": "...", "description": "...", "graphic_prompt": "...", "scheduled_day": ${batchStart + 1} }] }`,
+        }],
       });
 
-      if (error) {
-        console.log('[generate-week] Insert error:', error.message);
-      } else {
-        postsCreated++;
+      console.log(`[generate-week] Week ${weekNumber} batch ${batchNum} response received`);
+      const text = res.content[0].type === 'text' ? res.content[0].text : '';
+      let posts: any[];
+      try {
+        posts = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] || '{}').posts || [];
+      } catch {
+        console.log(`[generate-week] Failed to parse batch ${batchNum}`);
+        posts = [];
+      }
+
+      for (const post of posts) {
+        const dayOffset = (weekNumber - 1) * 7 + ((post.scheduled_day || batchStart + 1) - 1);
+        const scheduledDate = new Date(monthStart);
+        scheduledDate.setDate(scheduledDate.getDate() + dayOffset);
+
+        const { error } = await supabase.from('greg_content_queue').insert({
+          calendar_id: calendarId,
+          platform: post.platform,
+          post_type: post.post_type,
+          draft_content: post.content,
+          description: post.description || null,
+          graphic_prompt: post.graphic_prompt || null,
+          source_context: sourceContext,
+          scheduled_date: scheduledDate.toISOString().split('T')[0],
+          status: 'draft',
+        });
+
+        if (error) {
+          console.log('[generate-week] Insert error:', error.message);
+        } else {
+          postsCreated++;
+        }
       }
     }
 
-    console.log(`[generate-week] Week ${weekNumber} done: ${postsCreated} posts`);
+    console.log(`[generate-week] Week ${weekNumber} complete: ${postsCreated} posts`);
     return NextResponse.json({ postsCreated });
   } catch (err) {
     console.error('[generate-week] Error:', err);

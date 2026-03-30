@@ -285,7 +285,7 @@ export default function GeneratePage() {
     setResult({
       postsCreated: totalPosts,
       themes: weeks.map(w => w.theme),
-      reviewUrl: `/content/review/${month}`,
+      reviewUrl: `/content/review/${currentCalendarId}`,
     });
     setStep('done');
     setProgress('');

@@ -33,7 +33,8 @@ export default function ReviewPage({ params }: { params: Promise<{ month: string
 
   useEffect(() => {
     params.then((p) => { setMonthParam(p.month); loadData(p.month); });
-  }, [params]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function loadData(month: string) {
     setLoading(true);
@@ -44,7 +45,7 @@ export default function ReviewPage({ params }: { params: Promise<{ month: string
     setLoading(false);
   }
 
-  async function updatePost(postId: string, updates: { status?: string; draft_content?: string; chloe_notes?: string }) {
+  async function updatePost(postId: string, updates: { status?: string; draft_content?: string; description?: string; chloe_notes?: string; scheduled_date?: string }) {
     const res = await fetch(`/api/posts/${postId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

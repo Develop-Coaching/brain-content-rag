@@ -13,6 +13,7 @@ export async function PATCH(
 
   if (body.status !== undefined) updates.status = body.status;
   if (body.draft_content !== undefined) updates.draft_content = body.draft_content;
+  if (body.description !== undefined) updates.description = body.description;
   if (body.chloe_notes !== undefined) updates.chloe_notes = body.chloe_notes;
   if (body.scheduled_date !== undefined) updates.scheduled_date = body.scheduled_date;
 

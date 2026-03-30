@@ -78,7 +78,7 @@ export default async function HomePage() {
             }}>
               <DeleteCalendarButton id={cal.id} monthName={monthName} />
 
-              <a href={`/content/review/${monthKey}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+              <a href={`/content/review/${cal.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingRight: '28px' }}>
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>{monthName}</h3>
                   <span style={{
