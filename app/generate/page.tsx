@@ -98,12 +98,23 @@ export default function GeneratePage() {
 
       clearTimeout(timeoutId);
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Generation failed');
+      const responseText = await res.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        // Vercel returned HTML (likely a timeout or error page) instead of JSON
+        throw new Error(
+          res.status === 504 || responseText.includes('<!DOCTYPE')
+            ? 'The request timed out. This usually means your Vercel plan doesn\'t support long-running functions. The generate endpoint needs up to 5 minutes — Vercel Hobby plans cap at 10 seconds. Upgrade to Vercel Pro, or run generation locally with `npm run monthly`.'
+            : `Server error (${res.status})`
+        );
       }
 
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Generation failed');
+      }
+
       setResult(data);
       setProgress('');
     } catch (e) {
