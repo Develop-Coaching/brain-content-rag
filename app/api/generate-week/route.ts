@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import { GREG_SYSTEM_PROMPT, getSeasonalContext, formatMonth } from '../../../src/agent/voice';
 import { getSupabase } from '../../lib/supabase';
 
-export const maxDuration = 120; // 2 minutes per week — plenty
+export const maxDuration = 300; // 5 minutes
 
 const PLATFORM_GUIDELINES: Record<string, string> = {
   linkedin_article: 'LinkedIn Article: 500-800 words, long-form deep dive. Include a "description" field with a 1-2 sentence teaser.',
@@ -63,7 +63,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Quick knowledge base search
+    console.log(`[generate-week] Starting week ${weekNumber}, ${postCount} posts`);
     const emb = await openai.embeddings.create({ model: 'text-embedding-3-small', input: 'business planning cashflow pricing scaling leads architects subcontractors' });
+    console.log('[generate-week] Embeddings done');
     const { data: kbData } = await supabase.rpc('match_training_chunks', {
       query_embedding: emb.data[0].embedding,
       match_count: 15,
@@ -107,11 +109,13 @@ Respond in JSON only:
       }],
     });
 
+    console.log('[generate-week] Claude response received');
     const weekText = weekRes.content[0].type === 'text' ? weekRes.content[0].text : '';
     let weekPosts: any[];
     try {
       weekPosts = JSON.parse(weekText.match(/\{[\s\S]*\}/)?.[0] || '{}').posts || [];
     } catch {
+      console.log('[generate-week] Failed to parse Claude response');
       weekPosts = [];
     }
 
