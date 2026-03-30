@@ -204,7 +204,9 @@ export default function GeneratePage() {
             themes: weeks.map(w => w.theme),
           }),
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch { throw new Error(`Server error (${res.status})`); }
         if (!res.ok) throw new Error(data.error || 'Failed to create calendar');
         currentCalendarId = data.calendarId;
         setCalendarId(currentCalendarId);
@@ -253,10 +255,16 @@ export default function GeneratePage() {
         try {
           data = JSON.parse(responseText);
         } catch {
-          throw new Error('Server returned an invalid response');
+          // Response wasn't JSON — extract useful info
+          const isHtml = responseText.includes('<!DOCTYPE') || responseText.includes('<html');
+          const statusInfo = `(${res.status} ${res.statusText})`;
+          if (isHtml) {
+            throw new Error(`Server error ${statusInfo}. Check Vercel logs for details.`);
+          }
+          throw new Error(`Invalid response ${statusInfo}: ${responseText.slice(0, 200)}`);
         }
 
-        if (!res.ok) throw new Error(data.error || 'Generation failed');
+        if (!res.ok) throw new Error(data.error || `Generation failed (${res.status})`);
 
         statuses[i] = 'done';
         counts[i] = data.postsCreated || 0;
