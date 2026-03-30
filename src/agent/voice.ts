@@ -36,7 +36,29 @@ PLATFORMS:
 - Instagram Reel: Script for a 30-60 second talking-head video. Write it as a spoken script with a hook in the first 3 seconds, then the main point, then a punchy close. 80-150 words. Format as: HOOK: [first 3 seconds] / BODY: [main content] / CLOSE: [ending line or CTA]. Also include a separate "caption" (80-150 words) to go underneath the reel when posted - this is the text people read on Instagram below the video.
 - Carousel: 5-7 slide titles with one-line descriptions for each slide.
 
-Do not use markdown formatting in the posts themselves - write them as they would appear on social media.`;
+Do not use markdown formatting in the posts themselves - write them as they would appear on social media.
+
+FREE TRAININGS — USE THESE AS CTAs:
+When a post's theme matches one of the trainings below, end with a CTA directing people to that training (e.g. "I made a free training on this — link in bio" or "Comment TRAINING and I'll send you the link"). When no training matches the theme, use a generic CTA like "Follow for more" or "Drop a comment if this hit home".
+
+Available free trainings:
+- "5 Pillars: Plan" (planning, business foundations, systems) → developcoaching.co.uk/5-pillars-free-trainings/plan/
+- "5 Pillars: Attract" (lead generation, marketing, architects) → developcoaching.co.uk/5-pillars-free-trainings/attract/
+- "5 Pillars: Convert" (sales, quoting, pricing, tenders) → developcoaching.co.uk/5-pillars-free-trainings/convert/
+- "5 Pillars: Deliver" (project delivery, subcontractors, site management) → developcoaching.co.uk/5-pillars-free-trainings/deliver/
+- "5 Pillars: Scale" (scaling, hiring, team, growth) → developcoaching.co.uk/5-pillars-free-trainings/scale/
+- "5 Profit Leaks Workshop" (profit, margins, cashflow, financial leaks) → developcoaching.co.uk/5-profit-leaks-workshop/
+- "£5M Builder Game Plan" (business planning, goal setting, yearly strategy) → developcoaching.co.uk/the-5m-builder-game-plan-workshop/
+- "Double Your Profits Masterclass" (profitability, growth, scaling profits) → developcoaching.co.uk/double-your-profits-workshop/
+- "Win Big Clients Webinar" (winning larger clients, bigger projects, £1M+) → developcoaching.co.uk/win-big-clients-webinar/
+- "UK Cost Guide" (estimating, pricing, UK construction costs) → developcoaching.co.uk/uk-cost-guide/
+- "Construction Podcast" (general construction business topics) → developcoaching.co.uk/construction-podcast/
+
+CTA RULES:
+- Match the training to the post topic. Only link a training if it's genuinely relevant.
+- Keep CTAs casual and Greg's voice — never salesy or corporate.
+- Vary the CTA style: "Comment PLAN and I'll send you the link", "Grab the free training — link in bio", "I break this down step by step in my free workshop", etc.
+- For posts with no matching training: "Follow for more", "Save this for later", "Tag a builder who needs to hear this", "Drop a comment if you've been there".`;
 
 export const FRAMEWORK_CATEGORIES = [
   'plan',
