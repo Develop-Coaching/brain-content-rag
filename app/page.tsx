@@ -18,12 +18,23 @@ export default function HomePage() {
 
   useEffect(() => { loadData(); }, []);
 
+  const [error, setError] = useState('');
+
   async function loadData() {
     setLoading(true);
-    const res = await fetch('/api/calendars');
-    const data = await res.json();
-    setCalendars(data.calendars || []);
-    setPostCounts(data.postCounts || {});
+    setError('');
+    try {
+      const res = await fetch('/api/calendars');
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text.includes('<!DOCTYPE') ? 'Server error' : `Error ${res.status}`);
+      }
+      const data = await res.json();
+      setCalendars(data.calendars || []);
+      setPostCounts(data.postCounts || {});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load calendars');
+    }
     setLoading(false);
   }
 
@@ -41,6 +52,21 @@ export default function HomePage() {
     return (
       <div style={{ textAlign: 'center', padding: '80px', color: 'rgba(255,255,255,0.25)' }}>
         Loading...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ textAlign: 'center', padding: '60px' }}>
+        <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', fontSize: '13px', color: '#f87171', display: 'inline-block' }}>
+          {error}
+        </div>
+        <div style={{ marginTop: '16px' }}>
+          <button onClick={loadData} style={{ padding: '8px 16px', borderRadius: '8px', background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
