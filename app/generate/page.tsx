@@ -4,12 +4,48 @@ import { useState } from 'react';
 
 type WeekMode = 'auto' | 'custom';
 
+interface ContentMix {
+  linkedin_article: number;
+  linkedin_post: number;
+  email: number;
+  x: number;
+  instagram_post: number;
+  instagram_reel: number;
+  carousel: number;
+}
+
+const DEFAULT_MIX: ContentMix = {
+  linkedin_article: 1,
+  linkedin_post: 1,
+  email: 1,
+  x: 1,
+  instagram_post: 1,
+  instagram_reel: 1,
+  carousel: 1,
+};
+
+const CONTENT_TYPES: { key: keyof ContentMix; label: string; icon: string; color: string }[] = [
+  { key: 'linkedin_article', label: 'LinkedIn Article', icon: 'in', color: '#0a66c2' },
+  { key: 'linkedin_post', label: 'LinkedIn Post', icon: 'in', color: '#0a66c2' },
+  { key: 'email', label: 'Email', icon: '\u2709', color: '#ea580c' },
+  { key: 'x', label: 'X / Twitter', icon: 'X', color: '#fff' },
+  { key: 'instagram_post', label: 'Instagram Post', icon: 'IG', color: '#e040a0' },
+  { key: 'instagram_reel', label: 'Instagram Reel', icon: '\u25B6', color: '#e040a0' },
+  { key: 'carousel', label: 'Carousel', icon: '\u25a3', color: '#8b5cf6' },
+];
+
 interface WeekConfig {
   mode: WeekMode;
   theme: string;
   instructions: string;
   file: File | null;
   fileName: string;
+  contentMix: ContentMix;
+  showMix: boolean;
+}
+
+function newWeek(): WeekConfig {
+  return { mode: 'auto', theme: '', instructions: '', file: null, fileName: '', contentMix: { ...DEFAULT_MIX }, showMix: false };
 }
 
 export default function GeneratePage() {
@@ -18,12 +54,7 @@ export default function GeneratePage() {
     now.setMonth(now.getMonth() + 1);
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [weeks, setWeeks] = useState<WeekConfig[]>([
-    { mode: 'auto', theme: '', instructions: '', file: null, fileName: '' },
-    { mode: 'auto', theme: '', instructions: '', file: null, fileName: '' },
-    { mode: 'auto', theme: '', instructions: '', file: null, fileName: '' },
-    { mode: 'auto', theme: '', instructions: '', file: null, fileName: '' },
-  ]);
+  const [weeks, setWeeks] = useState<WeekConfig[]>([newWeek(), newWeek(), newWeek(), newWeek()]);
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState('');
   const [result, setResult] = useState<{ reviewUrl: string; postsCreated: number; themes: string[] } | null>(null);
@@ -31,6 +62,13 @@ export default function GeneratePage() {
 
   function updateWeek(i: number, updates: Partial<WeekConfig>) {
     setWeeks(prev => prev.map((w, idx) => idx === i ? { ...w, ...updates } : w));
+  }
+
+  function updateMix(weekIdx: number, key: keyof ContentMix, value: number) {
+    setWeeks(prev => prev.map((w, idx) => {
+      if (idx !== weekIdx) return w;
+      return { ...w, contentMix: { ...w.contentMix, [key]: Math.max(0, Math.min(5, value)) } };
+    }));
   }
 
   function setAllAuto() {
@@ -46,7 +84,11 @@ export default function GeneratePage() {
   }
 
   function addWeek() {
-    setWeeks(prev => [...prev, { mode: 'auto', theme: '', instructions: '', file: null, fileName: '' }]);
+    setWeeks(prev => [...prev, newWeek()]);
+  }
+
+  function getWeekPostCount(mix: ContentMix): number {
+    return Object.values(mix).reduce((sum, n) => sum + n, 0);
   }
 
   const customThemes = weeks
@@ -55,7 +97,8 @@ export default function GeneratePage() {
   const autoWeeks = weeks.filter(w => w.mode === 'auto').length;
   const customWeeksWithContent = customThemes.length;
   const customWeeksMissing = weeks.filter(w => w.mode === 'custom' && !w.theme.trim()).length;
-  const canGenerate = !generating && customWeeksMissing === 0;
+  const totalPosts = weeks.reduce((sum, w) => sum + getWeekPostCount(w.contentMix), 0);
+  const canGenerate = !generating && customWeeksMissing === 0 && totalPosts > 0;
 
   async function handleGenerate() {
     setGenerating(true);
@@ -64,7 +107,6 @@ export default function GeneratePage() {
     setProgress('Generating themes and content... this takes 1-2 minutes.');
 
     try {
-      // Read file contents for any weeks that have files
       const weekData = await Promise.all(weeks.map(async (w, i) => {
         let fileContent: string | null = null;
         if (w.file) {
@@ -77,13 +119,14 @@ export default function GeneratePage() {
           instructions: (w.instructions || '').trim() || null,
           fileContent,
           fileName: w.fileName || null,
+          contentMix: w.contentMix,
         };
       }));
 
       setProgress(`Generating themes for ${weeks.length} weeks...`);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 290000); // 4m50s
+      const timeoutId = setTimeout(() => controller.abort(), 290000);
 
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -103,7 +146,6 @@ export default function GeneratePage() {
       try {
         data = JSON.parse(responseText);
       } catch {
-        // Vercel returned HTML (likely a timeout or error page) instead of JSON
         throw new Error(
           res.status === 504 || responseText.includes('<!DOCTYPE')
             ? 'The request timed out. This usually means your Vercel plan doesn\'t support long-running functions. The generate endpoint needs up to 5 minutes — Vercel Hobby plans cap at 10 seconds. Upgrade to Vercel Pro, or run generation locally with `npm run monthly`.'
@@ -130,7 +172,7 @@ export default function GeneratePage() {
   const monthName = new Date(Number(monthYear), Number(monthNum) - 1).toLocaleString('default', { month: 'long', year: 'numeric' });
 
   return (
-    <div style={{ maxWidth: '640px' }}>
+    <div style={{ maxWidth: '680px' }}>
       <a href="/" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.3)', display: 'inline-flex', alignItems: 'center', gap: '4px', marginBottom: '12px' }}>
         {'\u2190'} Back
       </a>
@@ -175,114 +217,194 @@ export default function GeneratePage() {
 
       {/* Week rows */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {weeks.map((week, i) => (
-          <div key={i} style={{
-            display: 'flex', alignItems: 'flex-start', gap: '10px',
-            padding: '12px 14px', borderRadius: '10px',
-            background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
-            position: 'relative',
-          }}>
-            {/* Remove button */}
-            {weeks.length > 1 && (
-              <button
-                onClick={() => removeWeek(i)}
-                title="Remove this week"
-                style={{
-                  position: 'absolute', top: '8px', right: '8px',
-                  background: 'none', border: 'none', color: 'rgba(255,255,255,0.15)',
-                  fontSize: '14px', cursor: 'pointer', padding: '2px 6px',
-                  borderRadius: '4px', lineHeight: 1,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#f87171')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.15)')}
-              >{'\u2715'}</button>
-            )}
-            {/* Week label */}
-            <span style={{
-              fontSize: '11px', fontWeight: 700, color: '#7c3aed',
-              background: 'rgba(124,58,237,0.12)', padding: '4px 9px', borderRadius: '6px',
-              minWidth: '30px', textAlign: 'center', flexShrink: 0,
-            }}>W{i + 1}</span>
+        {weeks.map((week, i) => {
+          const weekPostCount = getWeekPostCount(week.contentMix);
+          return (
+            <div key={i} style={{
+              padding: '14px 16px', borderRadius: '12px',
+              background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+              position: 'relative',
+            }}>
+              {/* Top row: week label, mode toggle, remove */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: week.mode === 'custom' || week.showMix ? '12px' : '0' }}>
+                {/* Week label */}
+                <span style={{
+                  fontSize: '11px', fontWeight: 700, color: '#7c3aed',
+                  background: 'rgba(124,58,237,0.12)', padding: '4px 9px', borderRadius: '6px',
+                  minWidth: '30px', textAlign: 'center', flexShrink: 0,
+                }}>W{i + 1}</span>
 
-            {/* Mode toggle */}
-            <button
-              onClick={() => updateWeek(i, { mode: week.mode === 'auto' ? 'custom' : 'auto' })}
-              style={{
-                padding: '5px 12px', borderRadius: '6px', border: 'none', fontSize: '11px', fontWeight: 600,
-                background: week.mode === 'auto' ? 'rgba(74,222,128,0.1)' : 'rgba(245,158,11,0.1)',
-                color: week.mode === 'auto' ? '#4ade80' : '#f59e0b',
-                minWidth: '70px', flexShrink: 0,
-              }}
-            >
-              {week.mode === 'auto' ? '\u2713 Auto' : '\u270E Custom'}
-            </button>
+                {/* Mode toggle */}
+                <button
+                  onClick={() => updateWeek(i, { mode: week.mode === 'auto' ? 'custom' : 'auto' })}
+                  style={{
+                    padding: '5px 12px', borderRadius: '6px', border: 'none', fontSize: '11px', fontWeight: 600,
+                    background: week.mode === 'auto' ? 'rgba(74,222,128,0.1)' : 'rgba(245,158,11,0.1)',
+                    color: week.mode === 'auto' ? '#4ade80' : '#f59e0b',
+                    minWidth: '70px', flexShrink: 0,
+                  }}
+                >
+                  {week.mode === 'auto' ? '\u2713 Auto' : '\u270E Custom'}
+                </button>
 
-            {/* Theme input + file upload (only for custom) */}
-            {week.mode === 'custom' ? (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <input
-                  type="text"
-                  placeholder="Enter your theme for this week..."
-                  value={week.theme}
-                  onChange={(e) => updateWeek(i, { theme: e.target.value })}
+                {/* Content mix toggle */}
+                <button
+                  onClick={() => updateWeek(i, { showMix: !week.showMix })}
                   style={{
-                    width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.03)',
-                    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px',
-                    fontSize: '13px', color: '#e0e0e0',
+                    padding: '5px 10px', borderRadius: '6px', border: 'none', fontSize: '11px', fontWeight: 600,
+                    background: week.showMix ? 'rgba(96,165,250,0.15)' : 'rgba(255,255,255,0.04)',
+                    color: week.showMix ? '#60a5fa' : 'rgba(255,255,255,0.3)',
+                    display: 'flex', alignItems: 'center', gap: '4px',
                   }}
-                />
-                <textarea
-                  placeholder="Custom instructions: e.g. &quot;CTA should drive people to comment&quot;, &quot;Promote the workshop but don't give too much away&quot;, &quot;Include a link to buy tickets&quot;..."
-                  value={week.instructions}
-                  onChange={(e) => updateWeek(i, { instructions: e.target.value })}
-                  style={{
-                    width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid rgba(255,255,255,0.06)', borderRadius: '7px',
-                    fontSize: '12px', color: 'rgba(255,255,255,0.5)', minHeight: '50px',
-                    resize: 'vertical', fontFamily: 'inherit',
-                  }}
-                />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{
-                    padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 500,
-                    background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.15)',
-                    color: 'rgba(168,85,247,0.7)', cursor: 'pointer', display: 'inline-flex',
-                    alignItems: 'center', gap: '4px',
-                  }}>
-                    <span>{'\u{1F4CE}'}</span> {week.fileName ? 'Change file' : 'Add reference file'}
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.txt,.md,.csv"
-                      style={{ display: 'none' }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null;
-                        updateWeek(i, { file, fileName: file?.name || '' });
-                      }}
-                    />
-                  </label>
-                  {week.fileName && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>
-                        {week.fileName}
-                      </span>
-                      <button
-                        onClick={() => updateWeek(i, { file: null, fileName: '' })}
-                        style={{
-                          background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)',
-                          fontSize: '14px', cursor: 'pointer', padding: '0 4px',
-                        }}
-                      >{'\u2715'}</button>
-                    </div>
-                  )}
-                </div>
+                >
+                  {weekPostCount} posts {week.showMix ? '\u25B4' : '\u25BE'}
+                </button>
+
+                {/* Auto description */}
+                {week.mode === 'auto' && !week.showMix && (
+                  <span style={{ flex: 1, fontSize: '12px', color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>
+                    Auto theme from seasonal context
+                  </span>
+                )}
+
+                {/* Remove button */}
+                {weeks.length > 1 && (
+                  <button
+                    onClick={() => removeWeek(i)}
+                    title="Remove this week"
+                    style={{
+                      background: 'none', border: 'none', color: 'rgba(255,255,255,0.15)',
+                      fontSize: '14px', cursor: 'pointer', padding: '2px 6px',
+                      borderRadius: '4px', lineHeight: 1, marginLeft: 'auto', flexShrink: 0,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#f87171')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = 'rgba(255,255,255,0.15)')}
+                  >{'\u2715'}</button>
+                )}
               </div>
-            ) : (
-              <span style={{ flex: 1, fontSize: '12px', color: 'rgba(255,255,255,0.2)', fontStyle: 'italic' }}>
-                Greg Brain will pick a theme based on seasonal context
-              </span>
-            )}
-          </div>
-        ))}
+
+              {/* Content mix selector */}
+              {week.showMix && (
+                <div style={{
+                  padding: '12px', borderRadius: '8px',
+                  background: 'rgba(96,165,250,0.04)', border: '1px solid rgba(96,165,250,0.1)',
+                  marginBottom: week.mode === 'custom' ? '12px' : '0',
+                }}>
+                  <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
+                    Content Mix
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                    {CONTENT_TYPES.map(({ key, label, icon, color }) => (
+                      <div key={key} style={{
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '6px 8px', borderRadius: '6px',
+                        background: week.contentMix[key] > 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
+                      }}>
+                        <span style={{
+                          width: '22px', height: '22px', borderRadius: '5px',
+                          background: week.contentMix[key] > 0 ? `${color}22` : 'rgba(255,255,255,0.04)',
+                          color: week.contentMix[key] > 0 ? color : 'rgba(255,255,255,0.15)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '9px', fontWeight: 800, flexShrink: 0,
+                        }}>{icon}</span>
+                        <span style={{
+                          flex: 1, fontSize: '11px', fontWeight: 500,
+                          color: week.contentMix[key] > 0 ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.25)',
+                        }}>{label}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                          <button
+                            onClick={() => updateMix(i, key, week.contentMix[key] - 1)}
+                            style={{
+                              width: '22px', height: '22px', borderRadius: '4px',
+                              background: 'rgba(255,255,255,0.06)', border: 'none',
+                              color: 'rgba(255,255,255,0.4)', fontSize: '14px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                          >-</button>
+                          <span style={{
+                            minWidth: '20px', textAlign: 'center',
+                            fontSize: '13px', fontWeight: 700,
+                            color: week.contentMix[key] > 0 ? '#fff' : 'rgba(255,255,255,0.2)',
+                          }}>{week.contentMix[key]}</span>
+                          <button
+                            onClick={() => updateMix(i, key, week.contentMix[key] + 1)}
+                            style={{
+                              width: '22px', height: '22px', borderRadius: '4px',
+                              background: 'rgba(255,255,255,0.06)', border: 'none',
+                              color: 'rgba(255,255,255,0.4)', fontSize: '14px',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                          >+</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Theme input + file upload (only for custom) */}
+              {week.mode === 'custom' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input
+                    type="text"
+                    placeholder="Enter your theme for this week..."
+                    value={week.theme}
+                    onChange={(e) => updateWeek(i, { theme: e.target.value })}
+                    style={{
+                      width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid rgba(255,255,255,0.1)', borderRadius: '7px',
+                      fontSize: '13px', color: '#e0e0e0',
+                    }}
+                  />
+                  <textarea
+                    placeholder="Custom instructions: e.g. &quot;CTA should drive people to comment&quot;, &quot;Promote the workshop but don't give too much away&quot;..."
+                    value={week.instructions}
+                    onChange={(e) => updateWeek(i, { instructions: e.target.value })}
+                    style={{
+                      width: '100%', padding: '8px 12px', background: 'rgba(255,255,255,0.02)',
+                      border: '1px solid rgba(255,255,255,0.06)', borderRadius: '7px',
+                      fontSize: '12px', color: 'rgba(255,255,255,0.5)', minHeight: '50px',
+                      resize: 'vertical', fontFamily: 'inherit',
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{
+                      padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 500,
+                      background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.15)',
+                      color: 'rgba(168,85,247,0.7)', cursor: 'pointer', display: 'inline-flex',
+                      alignItems: 'center', gap: '4px',
+                    }}>
+                      <span>{'\u{1F4CE}'}</span> {week.fileName ? 'Change file' : 'Add reference file'}
+                      <input
+                        type="file"
+                        accept=".pdf,.doc,.docx,.txt,.md,.csv"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          updateWeek(i, { file, fileName: file?.name || '' });
+                        }}
+                      />
+                    </label>
+                    {week.fileName && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>
+                          {week.fileName}
+                        </span>
+                        <button
+                          onClick={() => updateWeek(i, { file: null, fileName: '' })}
+                          style={{
+                            background: 'none', border: 'none', color: 'rgba(255,255,255,0.2)',
+                            fontSize: '14px', cursor: 'pointer', padding: '0 4px',
+                          }}
+                        >{'\u2715'}</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {/* Add week button */}
         <button
@@ -304,7 +426,7 @@ export default function GeneratePage() {
       <div style={{ marginTop: '16px', fontSize: '12px', color: 'rgba(255,255,255,0.25)', display: 'flex', gap: '16px' }}>
         {autoWeeks > 0 && <span>{autoWeeks} auto-generated</span>}
         {customWeeksWithContent > 0 && <span>{customWeeksWithContent} custom</span>}
-        <span style={{ marginLeft: 'auto' }}>{weeks.length * 8} posts total (8 per week)</span>
+        <span style={{ marginLeft: 'auto' }}>{totalPosts} posts total across {weeks.length} weeks</span>
       </div>
 
       {customWeeksMissing > 0 && (

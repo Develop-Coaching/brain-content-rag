@@ -6,6 +6,35 @@ import { getSupabase } from '../../lib/supabase';
 
 export const maxDuration = 300; // 5 minutes
 
+const PLATFORM_GUIDELINES: Record<string, string> = {
+  linkedin_article: 'LinkedIn Article: 500-800 words, long-form deep dive. Include a "description" field with a 1-2 sentence teaser.',
+  linkedin_post: 'LinkedIn Post: 150-300 words, shorter punchy take. Include a "description" field with key takeaway.',
+  email: 'Email: 200-400 words, conversational letter style. Include a "description" field as the subject line.',
+  x: 'X/Twitter: Under 280 chars. Include a "description" field (same as content).',
+  instagram_post: 'Instagram Post: 100-200 word caption. Include a "description" field with a hook for the image overlay.',
+  instagram_reel: 'Instagram Reel: Spoken script using HOOK: / BODY: / CLOSE: format. Include a "description" field with 80-150 word caption for underneath the reel.',
+  carousel: 'Carousel: 5-7 slide titles with descriptions. Include a "description" field summarising the carousel.',
+};
+
+function buildPostList(contentMix: Record<string, number>): string {
+  const lines: string[] = [];
+  let num = 1;
+  for (const [platform, count] of Object.entries(contentMix)) {
+    if (count <= 0) continue;
+    const guideline = PLATFORM_GUIDELINES[platform] || `${platform}: Write appropriate content for this platform.`;
+    if (count === 1) {
+      lines.push(`${num}. ${guideline}`);
+      num++;
+    } else {
+      for (let i = 0; i < count; i++) {
+        lines.push(`${num}. ${guideline} (variation ${i + 1} of ${count} — each must have a unique angle)`);
+        num++;
+      }
+    }
+  }
+  return lines.join('\n');
+}
+
 export async function POST(request: NextRequest) {
   try {
   const supabase = getSupabase();
@@ -33,6 +62,11 @@ export async function POST(request: NextRequest) {
   const knowledgeBase = await quickSearch('business planning cashflow pricing scaling leads architects subcontractors', 15);
 
   // Build week themes - mix of auto and custom
+  const defaultMix = {
+    linkedin_article: 1, linkedin_post: 1, email: 1, x: 1,
+    instagram_post: 1, instagram_reel: 1, carousel: 1,
+  };
+
   const configs = weekConfigs || [
     { week: 1, mode: 'auto' }, { week: 2, mode: 'auto' },
     { week: 3, mode: 'auto' }, { week: 4, mode: 'auto' },
@@ -61,14 +95,15 @@ export async function POST(request: NextRequest) {
     autoThemes = JSON.parse(themesText.match(/\{[\s\S]*\}/)?.[0] || '{"themes":[]}').themes || [];
   }
 
-  // Assemble final week themes (with file content if provided)
+  // Assemble final week themes (with file content and content mix if provided)
   let autoIdx = 0;
   const weekThemes = configs.map((w: any) => {
+    const contentMix = w.contentMix || defaultMix;
     if (w.mode === 'custom' && w.theme) {
-      return { week: w.week, theme: w.theme, description: w.theme, instructions: w.instructions || null, fileContent: w.fileContent || null, fileName: w.fileName || null };
+      return { week: w.week, theme: w.theme, description: w.theme, instructions: w.instructions || null, fileContent: w.fileContent || null, fileName: w.fileName || null, contentMix };
     } else {
       const auto = autoThemes[autoIdx++] || { theme: 'Content Week', description: '' };
-      return { week: w.week, theme: auto.theme, description: auto.description, instructions: null, fileContent: null, fileName: null };
+      return { week: w.week, theme: auto.theme, description: auto.description, instructions: null, fileContent: null, fileName: null, contentMix };
     }
   });
 
@@ -91,10 +126,12 @@ export async function POST(request: NextRequest) {
   let totalPosts = 0;
 
   for (const weekTheme of weekThemes) {
+    const postCount = Object.values(weekTheme.contentMix).reduce((sum: number, n: any) => sum + (n as number), 0);
+    if (postCount === 0) continue;
+
     // Build reference material section
     let referenceSection = `KNOWLEDGE BASE CONTENT TO DRAW FROM:\n${knowledgeBase}`;
     if (weekTheme.fileContent) {
-      // Truncate file content to ~6000 chars to leave room for the rest of the prompt
       const truncatedFile = weekTheme.fileContent.slice(0, 6000);
       referenceSection += `\n\nREFERENCE FILE (${weekTheme.fileName}):\nUse this file as primary source material for this week's content. Draw specific examples, frameworks, and ideas from it.\n\n${truncatedFile}${weekTheme.fileContent.length > 6000 ? '\n\n[...file truncated]' : ''}`;
     }
@@ -103,9 +140,14 @@ export async function POST(request: NextRequest) {
       ? `\n\nCUSTOM INSTRUCTIONS (MUST FOLLOW):\n${weekTheme.instructions}\nThese instructions override defaults. Follow them exactly.`
       : '';
 
+    const postListPrompt = buildPostList(weekTheme.contentMix);
+
+    // Scale max_tokens based on post count
+    const maxTokens = Math.min(16000, Math.max(4000, postCount * 1500));
+
     const weekRes = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
+      max_tokens: maxTokens,
       system: GREG_SYSTEM_PROMPT,
       messages: [{
         role: 'user',
@@ -114,25 +156,8 @@ Theme: "${weekTheme.theme}" - ${weekTheme.description}${instructionsBlock}
 
 ${referenceSection}
 
-Generate exactly 8 posts for this week:
-1. LinkedIn Article (platform: "linkedin_article") - 500-800 words, long-form deep dive
-2. LinkedIn Post (platform: "linkedin_post") - 150-300 words, shorter punchy take
-3. Email (platform: "email") - 200-400 words, conversational letter style
-4. X/Twitter (platform: "x") - under 280 chars
-5. Instagram Post (platform: "instagram_post") - 100-200 word caption
-6. Instagram Reel (platform: "instagram_reel") - spoken script using HOOK: / BODY: / CLOSE: format
-7. Carousel (platform: "carousel") - 5-7 slide titles with descriptions
-8. One extra post on whichever platform fits best
-
-IMPORTANT: Every single post MUST include a "description" field:
-- LinkedIn Article: 1-2 sentence teaser/summary
-- LinkedIn Post: 1 sentence summary of the key takeaway
-- Email: Subject line for the email
-- X/Twitter: Not needed (set description to same as content)
-- Instagram Post: 1 sentence hook for the image overlay
-- Instagram Reel: 80-150 word caption to appear underneath the reel on Instagram
-- Carousel: 1 sentence description of what the carousel covers
-- Extra post: appropriate description for its platform
+Generate exactly ${postCount} posts for this week:
+${postListPrompt}
 
 ALSO: For every post, include a "graphic_prompt" field - a brief creative direction for the visual/graphic to accompany the post. Describe what the image or graphic should look like: style, colours, text overlay, photo type, or illustration concept. Be specific enough that a designer or AI image tool could create it. For reels, describe the thumbnail.
 
@@ -156,7 +181,6 @@ Respond in JSON only:
       const scheduledDate = new Date(monthStart);
       scheduledDate.setDate(scheduledDate.getDate() + dayOffset);
 
-      // Store truncated file content so regenerate can use it
       const sourceContext = weekTheme.fileContent
         ? weekTheme.fileContent.slice(0, 4000)
         : null;
