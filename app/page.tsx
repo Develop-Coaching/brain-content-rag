@@ -1,74 +1,30 @@
-'use client';
+import { getSupabase } from './lib/supabase';
+import { DeleteCalendarButton } from './components/DeleteCalendarButton';
 
-import { useEffect, useState } from 'react';
+export const dynamic = 'force-dynamic';
 
-interface Calendar {
-  id: string;
-  month: string;
-  themes: string[];
-  status: string;
-  generated_at: string;
-}
+export default async function HomePage() {
+  const supabase = getSupabase();
+  const { data: calendars } = await supabase
+    .from('greg_monthly_calendars')
+    .select('id, month, themes, status, generated_at')
+    .order('month', { ascending: false })
+    .limit(12);
 
-export default function HomePage() {
-  const [calendars, setCalendars] = useState<Calendar[]>([]);
-  const [postCounts, setPostCounts] = useState<Record<string, { total: number; draft: number; approved: number }>>({});
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const calendarIds = calendars?.map((c) => c.id) || [];
+  const { data: posts } = calendarIds.length
+    ? await supabase
+        .from('greg_content_queue')
+        .select('calendar_id, status')
+        .in('calendar_id', calendarIds)
+    : { data: [] };
 
-  useEffect(() => { loadData(); }, []);
-
-  const [error, setError] = useState('');
-
-  async function loadData() {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch('/api/calendars');
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text.includes('<!DOCTYPE') ? 'Server error' : `Error ${res.status}`);
-      }
-      const data = await res.json();
-      setCalendars(data.calendars || []);
-      setPostCounts(data.postCounts || {});
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load calendars');
-    }
-    setLoading(false);
-  }
-
-  async function handleDelete(id: string, monthName: string) {
-    if (!confirm(`Delete the ${monthName} calendar and all its posts? This can't be undone.`)) return;
-    setDeleting(id);
-    const res = await fetch(`/api/calendars/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-      setCalendars(prev => prev.filter(c => c.id !== id));
-    }
-    setDeleting(null);
-  }
-
-  if (loading) {
-    return (
-      <div style={{ textAlign: 'center', padding: '80px', color: 'rgba(255,255,255,0.25)' }}>
-        Loading...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px' }}>
-        <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)', fontSize: '13px', color: '#f87171', display: 'inline-block' }}>
-          {error}
-        </div>
-        <div style={{ marginTop: '16px' }}>
-          <button onClick={loadData} style={{ padding: '8px 16px', borderRadius: '8px', background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
-            Retry
-          </button>
-        </div>
-      </div>
-    );
+  const postCounts: Record<string, { total: number; draft: number; approved: number }> = {};
+  for (const p of posts || []) {
+    if (!postCounts[p.calendar_id]) postCounts[p.calendar_id] = { total: 0, draft: 0, approved: 0 };
+    postCounts[p.calendar_id].total++;
+    if (p.status === 'draft') postCounts[p.calendar_id].draft++;
+    if (p.status === 'approved') postCounts[p.calendar_id].approved++;
   }
 
   return (
@@ -92,7 +48,7 @@ export default function HomePage() {
         </a>
       </div>
 
-      {calendars.length === 0 && (
+      {(!calendars || calendars.length === 0) && (
         <div style={{
           background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)',
           borderRadius: '12px', padding: '60px 40px', textAlign: 'center',
@@ -106,7 +62,7 @@ export default function HomePage() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-        {calendars.map((cal) => {
+        {calendars?.map((cal) => {
           const monthDate = new Date(cal.month + 'T00:00:00');
           const monthName = monthDate.toLocaleString('default', { month: 'long', year: 'numeric' });
           const monthKey = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`;
@@ -120,24 +76,7 @@ export default function HomePage() {
               border: '1px solid rgba(255,255,255,0.06)',
               position: 'relative',
             }}>
-              {/* Delete button */}
-              <button
-                onClick={(e) => { e.preventDefault(); handleDelete(cal.id, monthName); }}
-                disabled={deleting === cal.id}
-                style={{
-                  position: 'absolute', top: '12px', right: '12px',
-                  background: 'rgba(255,255,255,0.04)', border: 'none',
-                  color: 'rgba(255,255,255,0.2)', width: '28px', height: '28px',
-                  borderRadius: '6px', fontSize: '14px', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  opacity: deleting === cal.id ? 0.3 : 1,
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(248,113,113,0.15)'; e.currentTarget.style.color = '#f87171'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'rgba(255,255,255,0.2)'; }}
-                title="Delete calendar"
-              >
-                {deleting === cal.id ? '...' : '\u2715'}
-              </button>
+              <DeleteCalendarButton id={cal.id} monthName={monthName} />
 
               <a href={`/content/review/${monthKey}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingRight: '28px' }}>
