@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { FormattedContent } from './FormattedContent';
 
 interface Post {
   id: string;
@@ -142,17 +143,13 @@ export function PostDrawer({
             </button>
           </div>
           {previewMode ? (
-            <div
-              dangerouslySetInnerHTML={{
-                __html: content.includes('<') ? content : content.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>').replace(/^/, '<p>').replace(/$/, '</p>'),
-              }}
-              style={{
-                width: '100%', minHeight: '220px', padding: '16px',
-                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-                borderRadius: '10px', fontSize: '14px', lineHeight: '1.7',
-                color: '#e0e0e0', overflow: 'auto',
-              }}
-            />
+            <div style={{
+              width: '100%', minHeight: '220px', padding: '16px',
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '10px', overflow: 'auto',
+            }}>
+              <FormattedContent content={content} />
+            </div>
           ) : (
             <textarea
               value={content}

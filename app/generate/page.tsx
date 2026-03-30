@@ -347,9 +347,9 @@ export default function GeneratePage() {
         <div style={{
           marginTop: '20px', padding: '16px', borderRadius: '10px',
           background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
-          fontSize: '13px', color: '#f87171',
+          fontSize: '13px', color: '#f87171', wordBreak: 'break-word',
         }}>
-          {error}
+          {error.includes('<') ? error.replace(/<[^>]*>/g, '').slice(0, 500) : error}
         </div>
       )}
 

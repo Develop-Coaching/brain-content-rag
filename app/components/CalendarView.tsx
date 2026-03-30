@@ -226,7 +226,7 @@ export function CalendarView({
                         overflow: 'hidden', display: '-webkit-box',
                         WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                       }}>
-                        {post.draft_content.replace(/<[^>]*>/g, '').slice(0, 180)}
+                        {post.draft_content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)}
                       </div>
                     </div>
                   </button>
