@@ -1,5 +1,6 @@
 import { getSupabase } from './lib/supabase';
 import { DeleteCalendarButton } from './components/DeleteCalendarButton';
+import { RewordTool } from './components/RewordTool';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +61,10 @@ export default async function HomePage() {
           </p>
         </div>
       )}
+
+      <div style={{ marginBottom: '24px' }}>
+        <RewordTool />
+      </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
         {calendars?.map((cal) => {
