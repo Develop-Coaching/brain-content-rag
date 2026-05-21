@@ -8,6 +8,11 @@
     "audit": "tsx scripts/audit.ts",
     "ingest": "tsx scripts/run-ingestion.ts",
     "monthly": "tsx scripts/run-monthly.ts",
+    "images": "tsx scripts/run-monthly.ts --images-only",
+    "workshop": "tsx scripts/run-workshop.ts",
+    "publish:tick": "tsx scripts/run-publish-tick.ts",
+    "publish:weekly": "tsx scripts/run-weekly-summary.ts",
+    "publish:test": "tsx scripts/test-publisher.ts",
     "dev": "next dev --port 3000",
     "start": "next start"
   },
@@ -16,10 +21,12 @@
     "@slack/web-api": "^7.8.0",
     "@supabase/supabase-js": "^2.49.1",
     "dotenv": "^16.4.7",
+    "googleapis": "^172.0.0",
     "next": "^15.1.0",
     "openai": "^4.77.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "stripe": "^17.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -13,6 +13,11 @@ import {
   formatMonth,
   formatMonthKey,
 } from './voice.js';
+import {
+  pickHookForPost,
+  engagementBriefForWeek,
+  type Hook,
+} from './engagement.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -34,6 +39,7 @@ interface GeneratedPost {
   content: string;
   description?: string;
   graphic_prompt?: string;
+  engagement_type?: string;
   scheduled_day: number;
 }
 
@@ -186,13 +192,19 @@ Respond in JSON only:
     weeks: [],
   };
 
+  const monthStartForBrief = new Date(month.getFullYear(), month.getMonth(), 1);
+
   for (const weekTheme of weekThemes) {
     console.log(`Generating Week ${weekTheme.week}: ${weekTheme.theme}...`);
+
+    const weekStart = new Date(monthStartForBrief);
+    weekStart.setDate(weekStart.getDate() + (weekTheme.week - 1) * 7);
+    const weekBrief = engagementBriefForWeek(weekStart);
 
     const weekResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 8000,
-      system: GREG_SYSTEM_PROMPT,
+      system: `${GREG_SYSTEM_PROMPT}\n\n${weekBrief}`,
       messages: [{
         role: 'user',
         content: `Generate content for Week ${weekTheme.week} of ${formatMonth(month)}.
@@ -223,10 +235,21 @@ IMPORTANT: Every post MUST include a "description" field:
 
 ALSO: For every post, include a "graphic_prompt" field - creative direction for the visual/graphic. Describe the image style, colours, text overlay, photo type, or illustration concept. Specific enough for a designer or AI image tool.
 
+ENGAGEMENT HOOKS (CRITICAL): Every post MUST include a comment-driving element. Assign each post an "engagement_type" from this list and rotate so no two consecutive posts use the same tactic:
+- "open_question" — End with an open-ended question ("What's the biggest admin headache in your business right now?")
+- "poll" — This-or-that / poll style ("RAMS: do you write them yourself or pay a consultant? Drop a 1 or 2 below")
+- "comment_to_get" — Comment trigger for a resource ("Comment GUIDE and I'll send you the free training")
+- "tag_prompt" — Tag someone ("Tag a builder who needs to hear this")
+- "contrarian_hook" — Unpopular opinion opener ("Unpopular opinion: you don't need a project manager at £1M revenue")
+- "pin_comment" — For reels: note to pin first comment with a question to drive replies
+- "soft_cta" — Generic follow/save/share ("Save this for when you're quoting your next big job")
+
+The engagement hook must be WOVEN INTO the post content, not just tacked on. For reels, the engagement element should be in the caption AND/OR the CLOSE section.
+
 Spread scheduled_day values 1-7 across the week.
 
 Respond in JSON only:
-{ "posts": [{ "platform": "linkedin_article", "post_type": "deep_dive", "content": "Full content...", "description": "Description...", "graphic_prompt": "Image concept...", "scheduled_day": 1 }] }`,
+{ "posts": [{ "platform": "linkedin_article", "post_type": "deep_dive", "content": "Full content...", "description": "Description...", "graphic_prompt": "Image concept...", "engagement_type": "open_question", "scheduled_day": 1 }] }`,
       }],
     });
 
@@ -290,6 +313,20 @@ Respond in JSON only:
         .slice(0, 3)
         .map((c) => c.id);
 
+      // Pick a concrete hook from the library for this post. Overrides / backfills
+      // the engagement_type Claude chose so we stay aligned with the weekly schedule
+      // and accumulate hook-level performance data.
+      let chosenHook: Hook | null = null;
+      try {
+        chosenHook = await pickHookForPost({
+          date: scheduledDate,
+          platform: post.platform,
+          supabase,
+        });
+      } catch (err) {
+        console.error(`Hook pick failed for ${post.platform} on ${scheduledDate.toISOString()}:`, err);
+      }
+
       const { error: postError } = await supabase
         .from('greg_content_queue')
         .insert({
@@ -299,6 +336,10 @@ Respond in JSON only:
           draft_content: post.content,
           description: post.description || null,
           graphic_prompt: post.graphic_prompt || null,
+          engagement_type: chosenHook?.engagement_type ?? post.engagement_type ?? null,
+          engagement_hook_id: chosenHook?.id ?? null,
+          engagement_trigger_word: chosenHook?.trigger_word ?? null,
+          engagement_magnet_url: chosenHook?.magnet_url ?? null,
           source_chunk_ids: relevantChunks,
           scheduled_date: scheduledDate.toISOString().split('T')[0],
           status: 'draft',
@@ -319,7 +360,10 @@ Respond in JSON only:
   return { calendarId, postsCreated };
 }
 
-export async function notifyChloe(month: Date): Promise<void> {
+export async function notifyChloe(
+  month: Date,
+  imageResult?: { imagesGenerated: number; failed: number; skipped: number } | null
+): Promise<void> {
   const slackToken = process.env.SLACK_BOT_TOKEN;
   const channelId = process.env.SLACK_CONTENT_CHANNEL_ID;
 
@@ -337,9 +381,17 @@ export async function notifyChloe(month: Date): Promise<void> {
   const appUrl = process.env.APP_URL || 'http://localhost:3000';
   const reviewUrl = `${appUrl}/content/review/${formatMonthKey(month)}`;
 
+  let text = `Content calendar for ${monthName} is ready for review. ${reviewUrl}`;
+
+  if (imageResult) {
+    text += `\n\nImages: ${imageResult.imagesGenerated} generated`;
+    if (imageResult.skipped > 0) text += `, ${imageResult.skipped} skipped`;
+    if (imageResult.failed > 0) text += `, ${imageResult.failed} failed (re-run with --images-only to retry)`;
+  }
+
   await slack.chat.postMessage({
     channel: channelId,
-    text: `Content calendar for ${monthName} is ready for review. ${reviewUrl}`,
+    text,
   });
 
   console.log(`Slack notification sent to #content channel`);

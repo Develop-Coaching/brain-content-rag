@@ -1,0 +1,63 @@
+name: Publish tick
+
+# Runs every 5 minutes. Looks for scheduled posts whose time has come and
+# publishes them via the dispatcher (Meta IG/FB, LinkedIn, YouTube, manual Slack).
+# Also wakeable manually via the Actions tab "Run workflow" button.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   META_ACCESS_TOKEN
+#   META_PAGE_ACCESS_TOKEN
+#   META_FB_PAGE_ID
+#   META_IG_USER_ID
+#   LINKEDIN_ACCESS_TOKEN
+#   LINKEDIN_AUTHOR_URN
+# Optional secrets (only set if the platform is wired):
+#   YOUTUBE_CLIENT_ID
+#   YOUTUBE_CLIENT_SECRET
+#   YOUTUBE_REFRESH_TOKEN
+#   SLACK_BOT_TOKEN
+#   SLACK_PUBLISH_CHANNEL_ID
+
+on:
+  schedule:
+    # Every 5 minutes. GH Actions cron occasionally skips runs under load
+    # so don't rely on this for sub-15-min precision.
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: publish-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run publish tick
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_PAGE_ACCESS_TOKEN: ${{ secrets.META_PAGE_ACCESS_TOKEN }}
+          META_FB_PAGE_ID: ${{ secrets.META_FB_PAGE_ID }}
+          META_IG_USER_ID: ${{ secrets.META_IG_USER_ID }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_PUBLISH_CHANNEL_ID: ${{ secrets.SLACK_PUBLISH_CHANNEL_ID }}
+        run: npm run publish:tick
