@@ -11,7 +11,12 @@
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+// Loosely-typed client — table types aren't generated, and recent
+// supabase-js versions type untyped inserts as `never`.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySupabaseClient = SupabaseClient<any, any, any>;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -139,7 +144,7 @@ export async function pickHookForPost(opts: {
   date: Date;
   platform: string;
   avoidEngagementTypes?: EngagementType[];
-  supabase?: ReturnType<typeof createClient>;
+  supabase?: AnySupabaseClient;
 }): Promise<Hook> {
   const day = dayOfWeekFor(opts.date);
   const schedule = getDaySchedule(day);
@@ -241,7 +246,7 @@ export function fillHookTokens(
  * from it. Call this when a post is published, not when it's drafted.
  */
 export async function recordHookUse(
-  supabase: ReturnType<typeof createClient>,
+  supabase: AnySupabaseClient,
   params: {
     postId: string;
     platformPostId?: string;
