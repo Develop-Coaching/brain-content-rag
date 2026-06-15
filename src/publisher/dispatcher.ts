@@ -15,6 +15,7 @@ import {
   publishToFacebook,
 } from './adapters/meta.js';
 import { linkedInConfigured, publishToLinkedIn } from './adapters/linkedin.js';
+import { youtubeConfigured, publishToYouTube } from './adapters/youtube.js';
 import { manualSlackConfigured, notifyManualPost } from './adapters/manual-slack.js';
 
 const MAX_AUTO_ATTEMPTS = 3;
@@ -66,6 +67,9 @@ function pickAdapter(post: QueuePost): {
       break;
     case 'linkedin':
       if (linkedInConfigured()) return { run: () => publishToLinkedIn(post), mode: 'linkedin' };
+      break;
+    case 'youtube':
+      if (youtubeConfigured()) return { run: () => publishToYouTube(post), mode: 'youtube' };
       break;
   }
 

@@ -13,6 +13,7 @@
     "publish:tick": "tsx scripts/run-publish-tick.ts",
     "publish:weekly": "tsx scripts/run-weekly-summary.ts",
     "publish:test": "tsx scripts/test-publisher.ts",
+    "youtube": "tsx scripts/post-youtube.ts",
     "dev": "next dev --port 3000",
     "start": "next start"
   },

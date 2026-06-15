@@ -25,7 +25,13 @@ const ENV_PATH = resolve(__dirname, '..', '.env');
 const CLIENT_ID = process.env.YOUTUBE_CLIENT_ID;
 const CLIENT_SECRET = process.env.YOUTUBE_CLIENT_SECRET;
 const REDIRECT_URI = 'http://localhost:8080/callback';
-const SCOPES = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly'];
+// `youtube` (manage) is needed to edit a video after upload (e.g. flip privacy);
+// `youtube.upload` to create; `youtube.readonly` to verify channel/scopes.
+const SCOPES = [
+  'https://www.googleapis.com/auth/youtube.upload',
+  'https://www.googleapis.com/auth/youtube',
+  'https://www.googleapis.com/auth/youtube.readonly',
+];
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
   console.error('Set YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET first.');
