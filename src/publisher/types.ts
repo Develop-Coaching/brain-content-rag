@@ -16,6 +16,7 @@ export type AdapterMode =
   | 'meta_ig'
   | 'meta_fb'
   | 'linkedin'
+  | 'x'
   | 'youtube'
   | 'manual_slack';
 
