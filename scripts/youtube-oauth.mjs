@@ -153,6 +153,9 @@ function writeEnv(updates) {
 
 server.listen(8080, () => {
   console.log('Local callback listening on http://localhost:8080/callback');
-  console.log('Opening Google consent page...');
-  exec(`open "${authUrl.toString()}"`);
+  console.log('AUTH_URL:' + authUrl.toString());
+  if (process.env.YT_OAUTH_NO_OPEN !== '1') {
+    console.log('Opening Google consent page...');
+    exec(`open "${authUrl.toString()}"`);
+  }
 });
