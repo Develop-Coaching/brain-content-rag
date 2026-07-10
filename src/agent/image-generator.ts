@@ -23,6 +23,50 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Public bucket the app already uses for uploaded post media (see
+// app/api/posts/[id]/upload/route.ts). Reused here so generated images live at
+// the same place.
+const ASSET_BUCKET = 'post-assets';
+
+function contentTypeFor(filePath: string): string {
+  switch (path.extname(filePath).toLowerCase()) {
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.webp': return 'image/webp';
+    case '.gif': return 'image/gif';
+    default: return 'image/png';
+  }
+}
+
+// Upload each locally-generated image to Supabase Storage and return its public
+// https URL. Meta (IG carousel + FB multi-photo) and every other adapter fetch
+// media by public URL, so image_urls MUST hold real https links — a relative
+// path like /generated/... is never reachable by their servers. Idempotent per
+// key (upsert), and the local absolute paths are kept separately in image_paths.
+async function uploadImagesToStorage(
+  localPaths: string[],
+  monthKey: string,
+  postId: string,
+): Promise<string[]> {
+  // Ensure the bucket exists; ignore the "already exists" error.
+  await supabase.storage.createBucket(ASSET_BUCKET, { public: true }).catch(() => {});
+
+  const urls: string[] = [];
+  for (const localPath of localPaths) {
+    const bytes = fs.readFileSync(localPath);
+    const key = `generated/${monthKey}/${postId}/${path.basename(localPath)}`;
+    const { error } = await supabase.storage
+      .from(ASSET_BUCKET)
+      .upload(key, bytes, { contentType: contentTypeFor(localPath), upsert: true });
+    if (error) {
+      throw new Error(`Storage upload failed for ${path.basename(localPath)}: ${error.message}`);
+    }
+    const { data } = supabase.storage.from(ASSET_BUCKET).getPublicUrl(key);
+    urls.push(data.publicUrl);
+  }
+  return urls;
+}
+
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
@@ -599,15 +643,16 @@ export async function generateImagesForCalendar(
       const imageResult = await generateImagesForPost(post, monthKey, postIndex);
       if (!imageResult) { result.skipped++; continue; }
 
-      const relativePaths = imageResult.paths.map(p =>
-        `/generated/${monthKey}/${post.id}/${path.basename(p)}`
-      );
+      // Upload to Storage so image_urls holds public https URLs the publisher
+      // adapters can actually fetch (relative /generated/... paths never worked
+      // for Meta/IG carousels). Local paths stay in image_paths for idempotency.
+      const publicUrls = await uploadImagesToStorage(imageResult.paths, monthKey, post.id);
 
       const { error: updateError } = await supabase
         .from('greg_content_queue')
         .update({
           image_paths: imageResult.paths,
-          image_urls: relativePaths,
+          image_urls: publicUrls,
           image_style: imageResult.style,
         })
         .eq('id', post.id);
