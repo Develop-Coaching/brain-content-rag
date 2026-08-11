@@ -8,6 +8,7 @@
 //   --caption <file>      Caption/description file (default: caption.txt next to the video)
 //   --description "..."   Inline description (overrides --caption)
 //   --privacy <p>         public | unlisted | private  (default: public)
+//   --publish-at <iso>    Schedule: uploads as private, YouTube makes it public at this UTC time
 //   --dry                 Print what would be uploaded, don't call the API
 //
 // Vertical clips <=3min are auto-classified by YouTube as Shorts.
@@ -53,11 +54,17 @@ async function main() {
   const lines = description.split('\n').map((l) => l.trim()).filter(Boolean);
   const title = getFlag('title') ?? lines[0] ?? 'Develop Coaching';
   const tags = Array.from(description.matchAll(/#(\w+)/g)).map((m) => m[1]);
-  const privacy = (getFlag('privacy') ?? 'public') as YouTubePrivacy;
+  const publishAt = getFlag('publish-at');
+  // A scheduled video must be uploaded private; YouTube flips it public at publishAt.
+  const privacy = publishAt ? 'private' : ((getFlag('privacy') ?? 'public') as YouTubePrivacy);
+  if (publishAt && Number.isNaN(Date.parse(publishAt))) {
+    console.error(`--publish-at is not a valid date: ${publishAt}`);
+    process.exit(1);
+  }
 
   console.log('Video      :', videoPath);
   console.log('Title      :', title);
-  console.log('Privacy    :', privacy);
+  console.log('Privacy    :', privacy + (publishAt ? ` (goes public ${publishAt})` : ''));
   console.log('Tags       :', tags.join(', ') || '(none)');
   console.log('Description:', description ? description.slice(0, 120) + (description.length > 120 ? '…' : '') : '(none)');
 
@@ -66,7 +73,7 @@ async function main() {
     return;
   }
 
-  const result = await uploadVideo({ videoPath, title, description, tags, privacy });
+  const result = await uploadVideo({ videoPath, title, description, tags, privacy, publishAt });
   if (result.success) {
     console.log('\n✅ Uploaded:', result.externalUrl);
     console.log('   Shorts URL:', `https://youtube.com/shorts/${result.externalId}`);

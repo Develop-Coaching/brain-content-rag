@@ -53,6 +53,7 @@ export interface UploadVideoOptions {
   tags?: string[];
   privacy?: YouTubePrivacy;
   categoryId?: string;
+  publishAt?: string; // ISO 8601; requires privacy 'private', YouTube flips it public at this time
 }
 
 // Low-level upload — full control over title/description/privacy. Both the
@@ -81,6 +82,7 @@ export async function uploadVideo(opts: UploadVideoOptions): Promise<PublishResu
         status: {
           privacyStatus: opts.privacy || 'public',
           selfDeclaredMadeForKids: false,
+          ...(opts.publishAt ? { publishAt: opts.publishAt } : {}),
         },
       },
       media: {
