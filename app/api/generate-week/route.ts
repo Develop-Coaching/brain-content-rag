@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { londonTimeToUtcIso } from '../../lib/schedule';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { GREG_SYSTEM_PROMPT, formatMonth } from '../../../src/agent/voice';
@@ -93,6 +94,7 @@ Respond in JSON only:
         description: g.description ? sanitizeCopy(g.description) : null,
         graphic_prompt: g.graphic_prompt ? sanitizeCopy(g.graphic_prompt) : null,
         scheduled_date: day.date,
+        scheduled_time: londonTimeToUtcIso(day.date),
         week_number: weekNumber,
         day_of_week: day.day_of_week,
         spine_topic: day.spine_topic,

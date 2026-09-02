@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '../../../lib/supabase';
+import { londonTimeToUtcIso } from '../../../lib/schedule';
 
 export async function PATCH(
   request: NextRequest,
@@ -15,7 +16,12 @@ export async function PATCH(
   if (body.draft_content !== undefined) updates.draft_content = body.draft_content;
   if (body.description !== undefined) updates.description = body.description;
   if (body.chloe_notes !== undefined) updates.chloe_notes = body.chloe_notes;
-  if (body.scheduled_date !== undefined) updates.scheduled_date = body.scheduled_date;
+  if (body.scheduled_date !== undefined) {
+    updates.scheduled_date = body.scheduled_date;
+    // The dispatcher gates on scheduled_time, not scheduled_date. Derive it
+    // here or the row is never due and never publishes.
+    updates.scheduled_time = londonTimeToUtcIso(body.scheduled_date);
+  }
 
   // Handle rejection: set status back to draft with notes
   if (body.status === 'rejected') {
