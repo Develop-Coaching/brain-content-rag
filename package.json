@@ -15,7 +15,8 @@
     "publish:test": "tsx scripts/test-publisher.ts",
     "youtube": "tsx scripts/post-youtube.ts",
     "dev": "next dev --port 3000",
-    "start": "next start"
+    "start": "next start",
+    "test:schedule": "tsx app/lib/schedule.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
